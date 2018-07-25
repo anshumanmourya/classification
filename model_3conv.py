@@ -185,7 +185,7 @@ def evaluation(logits, labels):
   # It returns a bool tensor with shape [batch_size] that is true for
   # the examples where the label is in the top k (here k=1)
   # of all logits for that example.
-  correct = tf.nn.in_top_k(logits, labels, 2)
+  correct = tf.nn.in_top_k(logits, labels, 1)
   # Return the number of true entries.
   return tf.reduce_sum(tf.cast(correct, tf.int32))
 

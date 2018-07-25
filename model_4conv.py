@@ -49,7 +49,7 @@ dropout = 0.7
 # Create some wrappers for simplicity
 def conv2d(x, W, b, strides=1):
     # Conv2D wrapper, with bias and relu activation
-    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='VALID')
+    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='SAME')
     x = tf.nn.bias_add(x, b)
     return tf.nn.relu(x)
 
@@ -75,23 +75,28 @@ def inference(images, hidden1_units, hidden2_units):
   """
   #print(images.shape) 
   
+  #defining xavier initialiser
+  initializer = tf.contrib.layers.xavier_initializer()
 
-  # 5x5 conv, 1 input, 32 outputs
-  weights1 = tf.Variable(tf.random_normal([5, 5, 1, 32]))
-  # 5x5 conv, 32 inputs, 64 outputs
-  weights2 = tf.Variable(tf.random_normal([5, 5, 32, 64]))
-  # 3x3 conv , 64 inputs , 256 outputs
-  weights3 = tf.Variable(tf.random_normal([5, 5, 64, 256]))
-  # fully connected, 60*26*256 inputs, 1024 outputs
-  weights4 = tf.Variable(tf.random_normal([60*28*256, 1024]))
+  # 5x5 conv, 1 input, 16 outputs
+  weights1 = tf.get_variable("weights1",shape = [5, 5, 1, 16], initializer = initializer)
+  # 5x5 conv, 16 inputs, 32 outputs
+  weights2 = tf.get_variable("weights2",shape = [5, 5, 16, 32], initializer = initializer)
+  # 3x3 conv , 32 inputs , 64 outputs
+  weights3 = tf.get_variable("weights3",shape = [3, 3, 32, 64], initializer = initializer)
+  # 3x3 conv, 64 inputs, 256 outputs
+  weights4 = tf.get_variable("weights4",shape = [3, 3, 64, 256], initializer = initializer)
+  # fully connected, 20*9*256 inputs, 1024 outputs
+  weights5 = tf.get_variable("weights5",shape = [21*10*256, 1024], initializer = initializer)
   # 1024 inputs, 10 outputs (class prediction)
-  weights5 = tf.Variable(tf.random_normal([1024, NUM_CLASSES]))
+  weights6 = tf.get_variable("weights6",shape = [1024, NUM_CLASSES], initializer = initializer)
 
-  bias1 = tf.Variable(tf.random_normal([32]))
-  bias2 = tf.Variable(tf.random_normal([64]))
-  bias3 = tf.Variable(tf.random_normal([256]))
-  bias4 = tf.Variable(tf.random_normal([1024]))
-  bias5 = tf.Variable(tf.random_normal([NUM_CLASSES]))
+  bias1 = tf.get_variable("bias1", shape = [16], initializer = initializer)
+  bias2 = tf.get_variable("bias2",shape = [32], initializer = initializer)
+  bias3 = tf.get_variable("bias3",shape = [64], initializer = initializer)
+  bias4 = tf.get_variable("bias4",shape = [256], initializer = initializer)
+  bias5 = tf.get_variable("bias5",shape = [1024], initializer = initializer)
+  bias6 = tf.get_variable("bias6",shape = [NUM_CLASSES], initializer = initializer)
 
   x = tf.reshape(images,shape = [-1,740,360,1])
   
@@ -107,16 +112,20 @@ def inference(images, hidden1_units, hidden2_units):
   conv3 = conv2d(conv2, weights3, bias3)
   conv3 = maxpool2d(conv3,k=3)
 
+  #conv4
+  conv4 = conv2d(conv3, weights4, bias4)
+  conv4 = maxpool2d(conv4,k=3)
+  
   # Fully connected layer
   # Reshape conv3 output to fit fully connected layer input
-  fc1 = tf.reshape(conv3, [-1, weights4.get_shape().as_list()[0]])
-  fc1 = tf.add(tf.matmul(fc1, weights4), bias4)
+  fc1 = tf.reshape(conv4, [-1, weights5.get_shape().as_list()[0]])
+  fc1 = tf.add(tf.matmul(fc1, weights5), bias5)
   fc1 = tf.nn.relu(fc1)
   # Apply Dropout
   #fc1 = tf.nn.dropout(fc1, dropout)
 
   # Output, class prediction
-  logits = tf.add(tf.matmul(fc1, weights5), bias5)
+  logits = tf.add(tf.matmul(fc1, weights6), bias6)
   
   return logits
   
@@ -159,10 +168,14 @@ def training(loss, learning_rate):
   """
   # Add a scalar summary for the snapshot loss.
   tf.summary.scalar(loss.op.name, loss)
-  # Create the gradient descent optimizer with the given learning rate.
-  optimizer = tf.train.AdamOptimizer(learning_rate)
+  
+
   # Create a variable to track the global step.
   global_step = tf.Variable(0, name='global_step', trainable=False)
+
+  #rate = tf.train.exponential_decay(0.15, global_step, 1, 0.9999)
+  # Create the gradient descent optimizer with the given learning rate.
+  optimizer = tf.train.AdamOptimizer(learning_rate)
   # Use the optimizer to apply the gradients that minimize the loss
   # (and also increment the global step counter) as a single training step.
   train_op = optimizer.minimize(loss, global_step=global_step)
@@ -185,7 +198,7 @@ def evaluation(logits, labels):
   # It returns a bool tensor with shape [batch_size] that is true for
   # the examples where the label is in the top k (here k=1)
   # of all logits for that example.
-  correct = tf.nn.in_top_k(logits, labels, 2)
+  correct = tf.nn.in_top_k(logits, labels, 1)
   # Return the number of true entries.
   return tf.reduce_sum(tf.cast(correct, tf.int32))
 
